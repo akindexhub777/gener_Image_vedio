@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeoVision AI — Générateur</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root{--bg:#0a0a0a;--fg:#e5e5e5;--muted:#555;--accent:#f59e0b;--accent-l:#fbbf24;--card:#131313;--border:#1e1e1e;--surface:#181818;--err:#f87171;--ok:#4ade80;--info:#60a5fa}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--fg);overflow:hidden;height:100vh}
+        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+        @keyframes msgIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}.msg-in{animation:msgIn .4s cubic-bezier(.16,1,.3,1) forwards}
+        @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-7px)}}.tdot{animation:bounce 1.4s infinite}.tdot:nth-child(2){animation-delay:.15s}.tdot:nth-child(3){animation-delay:.3s}
+        @keyframes float{0%,100%{transform:translateY(0) scale(1);opacity:.15}50%{transform:translateY(-30px) scale(1.5);opacity:.4}}.particle{position:absolute;border-radius:50%;background:var(--accent);animation:float var(--d) ease-in-out infinite;animation-delay:var(--dl);pointer-events:none}
+        @keyframes toastIn{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes toastOut{from{transform:translateX(0);opacity:1}to{transform:translateX(120%);opacity:0}}
+        .toast-in{animation:toastIn .3s ease forwards}.toast-out{animation:toastOut .3s ease forwards}
+        @keyframes fadeBg{from{opacity:0}to{opacity:1}}@keyframes scaleImg{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+        .lb-bg{animation:fadeBg .2s ease}.lb-img{animation:scaleImg .3s cubic-bezier(.16,1,.3,1)}
+        @keyframes pulseGlow{0%,100%{box-shadow:0 0 8px rgba(245,158,11,.15)}50%{box-shadow:0 0 24px rgba(245,158,11,.3)}}.pulse-glow{animation:pulseGlow 2s ease-in-out infinite}
+        .gen-img{transition:transform .3s,box-shadow .3s;cursor:pointer}.gen-img:hover{transform:scale(1.015);box-shadow:0 8px 32px rgba(0,0,0,.6)}
+        .sidebar-item{transition:all .15s}.sidebar-item:hover{background:var(--surface)}.sidebar-item.active{background:var(--surface);border-left:2px solid var(--accent)}
+        .mode-btn{transition:all .15s}.mode-btn.active{background:var(--accent);color:#000;font-weight:600}.mode-btn:not(.active){color:var(--muted)}.mode-btn:not(.active):hover{color:var(--fg);background:var(--surface)}
+        .input-glow:focus-within{box-shadow:0 0 0 1px var(--accent),0 0 20px rgba(245,158,11,.08)}
+        .cfg-input{background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:8px 12px;border-radius:8px;font-size:13px;width:100%;outline:none;font-family:'Space Grotesk',sans-serif;transition:border-color .15s}.cfg-input:focus{border-color:var(--accent)}
+        .cfg-label{font-size:11px;color:var(--muted);margin-bottom:4px;display:block;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+        .dbg{background:#0a0a0a;border:1px solid var(--border);border-radius:10px;padding:12px;font-family:'Courier New',monospace;font-size:11px;color:#888;max-height:220px;overflow-y:auto;word-break:break-all;white-space:pre-wrap;line-height:1.7}
+        .dbg .e{color:var(--err)}.dbg .s{color:var(--ok)}.dbg .i{color:var(--info)}.dbg .w{color:var(--accent)}
+        .step{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)}
+        .step-num{width:24px;height:24px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;color:var(--muted)}
+        .step-num.done{background:var(--ok)/20;border-color:var(--ok);color:var(--ok)}
+        .step-num.fail{background:var(--err)/20;border-color:var(--err);color:var(--err)}
+        .step-num.running{background:var(--accent)/20;border-color:var(--accent);color:var(--accent);animation:pulseGlow 1s infinite}
+        @media(max-width:768px){.sidebar{position:fixed;left:-290px;z-index:50;transition:left .3s ease;height:100vh}.sidebar.open{left:0}.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:40}.sb-overlay.open{display:block}}
+        @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+    </style>
+</head>
+<body>
+    <div id="particles" class="fixed inset-0 pointer-events-none z-0" aria-hidden="true"></div>
+    <div id="sbOverlay" class="sb-overlay" onclick="toggleSidebar()"></div>
+
+    <div class="flex h-screen relative z-10">
+        <aside id="sidebar" class="sidebar w-[280px] min-w-[280px] bg-[#0e0e0e] border-r border-[var(--border)] flex flex-col">
+            <div class="p-4 border-b border-[var(--border)]">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-9 h-9 rounded-lg bg-[var(--accent)] flex items-center justify-center text-black font-bold text-sm">NV</div>
+                    <div><div class="font-semibold text-sm tracking-wide">NeoVision AI</div><div class="text-[11px] text-[var(--muted)]">originlab.ai</div></div>
+                </div>
+                <button onclick="newChat()" class="w-full py-2.5 px-4 rounded-lg border border-[var(--border)] text-sm flex items-center justify-center gap-2 hover:bg-[var(--surface)] transition-colors mb-2">
+                    <i class="fa-solid fa-plus text-[var(--accent)] text-xs"></i> Nouveau chat
+                </button>
+                <button onclick="openConfig()" class="w-full py-2.5 px-4 rounded-lg border border-[var(--accent)]/30 text-sm flex items-center justify-center gap-2 hover:bg-[var(--accent)]/10 transition-colors text-[var(--accent)]">
+                    <i class="fa-solid fa-gear text-xs"></i> Config & Debug
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-3 space-y-1" id="chatList"></div>
+            <div class="p-4 border-t border-[var(--border)]">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-[var(--surface)] flex items-center justify-center text-xs text-[var(--accent)]"><i class="fa-solid fa-user"></i></div>
+                    <div class="flex-1 min-w-0"><div class="text-xs font-medium truncate">Utilisateur</div><div class="text-[10px]" id="apiStatus"><i class="fa-solid fa-circle text-yellow-400 text-[6px] mr-1"></i>Non configuré</div></div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col min-w-0">
+            <header class="h-14 min-h-[56px] border-b border-[var(--border)] flex items-center px-4 gap-3 bg-[#0e0e0e]/80 backdrop-blur-md">
+                <button onclick="toggleSidebar()" class="md:hidden w-8 h-8 rounded-lg hover:bg-[var(--surface)] flex items-center justify-center text-[var(--muted)]"><i class="fa-solid fa-bars text-sm"></i></button>
+                <div class="flex-1 min-w-0"><h1 class="text-sm font-semibold truncate" id="headerTitle">Nouvelle conversation</h1></div>
+                <div class="flex rounded-lg overflow-hidden border border-[var(--border)]">
+                    <button class="mode-btn active px-3 py-1.5 text-xs" data-mode="image" onclick="setMode('image')"><i class="fa-solid fa-image mr-1"></i>Image</button>
+                    <button class="mode-btn px-3 py-1.5 text-xs" data-mode="video" onclick="setMode('video')"><i class="fa-solid fa-video mr-1"></i>Vidéo</button>
+                </div>
+            </header>
+            <div class="flex-1 overflow-y-auto" id="chatArea"><div class="max-w-3xl mx-auto px-4 py-6" id="messages"></div></div>
+            <div class="border-t border-[var(--border)] bg-[#0e0e0e]/80 backdrop-blur-md p-4">
+                <div class="max-w-3xl mx-auto">
+                    <div class="input-glow flex items-end gap-2 bg-[var(--card)] border border-[var(--border)] rounded-xl p-2 transition-shadow">
+                        <textarea id="promptInput" rows="1" placeholder="Décrivez l'image ou la vidéo à générer..."
+                            class="flex-1 bg-transparent text-sm text-[var(--fg)] placeholder-[var(--muted)] resize-none outline-none px-3 py-2 max-h-32"
+                            onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+                        <button onclick="sendPrompt()" id="sendBtn" class="w-10 h-10 rounded-lg bg-[var(--accent)] text-black flex items-center justify-center hover:bg-[var(--accent-l)] transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed" disabled>
+                            <i class="fa-solid fa-arrow-up text-sm font-bold"></i>
+                        </button>
+                    </div>
+                    <div class="text-[10px] text-[var(--muted)] mt-2 text-center" id="modeHint">Mode : <span class="text-[var(--accent)]">Image</span></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Config -->
+    <div id="configModal" class="fixed inset-0 z-[90] hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeConfig()"></div>
+        <div class="absolute inset-0 flex items-center justify-center p-4">
+            <div class="bg-[#141414] border border-[var(--border)] rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+                <div class="p-5 border-b border-[var(--border)] flex items-center justify-between">
+                    <h2 class="font-semibold text-base">Configuration & Debug</h2>
+                    <button onclick="closeConfig()" class="w-8 h-8 rounded-lg hover:bg-[var(--surface)] flex items-center justify-center text-[var(--muted)]"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="p-5 space-y-4">
+                    <div class="p-3 rounded-xl bg-[var(--accent)]/5 border border-[var(--accent)]/20">
+                        <div class="text-xs font-medium text-[var(--accent)] mb-1"><i class="fa-solid fa-lightbulb mr-1"></i> Comment trouver l'endpoint :</div>
+                        <div class="text-[11px] text-[var(--muted)] leading-relaxed">Connecte-toi sur <strong class="text-[var(--fg)]">originlab.ai</strong> → va dans <strong class="text-[var(--fg)]">API / Documentation</strong> → tu devrais voir l'URL de base et les endpoints (ex: /v1/images/generations). Copie-colle ces infos ci-dessous.</div>
+                    </div>
+
+                    <div>
+                        <label class="cfg-label">URL de base de l'API</label>
+                        <input id="cfgBase" class="cfg-input" value="https://api.originlab.ai/v1" placeholder="https://api.originlab.ai/v1">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="cfg-label">Endpoint Image</label>
+                            <input id="cfgImg" class="cfg-input" value="/images/generations" placeholder="/images/generations">
+                        </div>
+                        <div>
+                            <label class="cfg-label">Endpoint Vidéo</label>
+                            <input id="cfgVid" class="cfg-input" value="/videos/generations" placeholder="/videos/generations">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="cfg-label">Chemin URL dans la réponse (ex: data.0.url)</label>
+                        <input id="cfgPath" class="cfg-input" value="data.0.url" placeholder="data.0.url">
+                        <div class="text-[10px] text-[var(--muted)] mt-1">Essaie aussi : url | output | result | image | data.0.b64_json</div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="autoDetect()" id="detectBtn" class="flex-1 py-2.5 rounded-lg border border-[var(--info)]/30 text-[var(--info)] text-sm font-medium hover:bg-[var(--info)]/10 transition-colors">
+                            <i class="fa-solid fa-magnifying-glass mr-2"></i>Détection automatique
+                        </button>
+                        <button onclick="testOne()" class="flex-1 py-2.5 rounded-lg border border-[var(--accent)]/30 text-[var(--accent)] text-sm font-medium hover:bg-[var(--accent)]/10 transition-colors">
+                            <i class="fa-solid fa-flask mr-2"></i>Tester manuel
+                        </button>
+                    </div>
+
+                    <div>
+                        <label class="cfg-label">Journal de détection</label>
+                        <div id="debugLog" class="dbg"><span class="i">Clique sur "Détection automatique" pour scanner les endpoints possibles...</span></div>
+                    </div>
+
+                    <button onclick="saveConfig()" class="w-full py-2.5 rounded-lg bg-[var(--accent)] text-black text-sm font-semibold hover:bg-[var(--accent-l)] transition-colors">
+                        <i class="fa-solid fa-check mr-2"></i>Sauvegarder et fermer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div id="lightbox" class="fixed inset-0 z-[100] hidden" onclick="closeLightbox(event)">
+        <div class="lb-bg absolute inset-0 bg-black/90 backdrop-blur-sm"></div>
+        <div class="absolute inset-0 flex items-center justify-center p-4">
+            <div class="lb-img relative max-w-5xl w-full max-h-[90vh] flex flex-col items-center">
+                <img id="lbImg" src="" alt="Aperçu" class="max-w-full max-h-[80vh] rounded-xl object-contain">
+                <div class="flex gap-3 mt-4">
+                    <a id="lbDownload" href="" download="neovision.png" class="px-4 py-2 bg-[var(--accent)] text-black rounded-lg text-sm font-medium hover:bg-[var(--accent-l)] transition-colors"><i class="fa-solid fa-download mr-2"></i>Télécharger</a>
+                    <button onclick="closeLightbox()" class="px-4 py-2 bg-[var(--surface)] text-[var(--fg)] rounded-lg text-sm hover:bg-[var(--border)] transition-colors">Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toasts" class="fixed top-4 right-4 z-[200] space-y-2 pointer-events-none"></div>
+
+    <script>
+    /* ===== CLÉ API OBFUSQUÉE ===== */
+    function _r(a,o){return a.map(function(c){return String.fromCharCode(c-o)}).join('')}
+    var _k=_r([114,111,100,101,98,84,119,80,76,48,73,72,77,75,54,69,74,71,107,48,84,74,121,85,85,82,56,124,71,79,69,87,111,72,93,86,70,108,102,125,108,75,52,78,118,82,113,80],3);
+
+    /* ===== CONFIG ===== */
+    var cfg=JSON.parse(localStorage.getItem('nv_cfg')||'null')||{
+        base:'https://api.originlab.ai/v1',
+        img:'/images/generations',
+        vid:'/videos/generations',
+        path:'data.0.url',
+        found:false
+    };
+    var currentMode='image';
+    var convos=JSON.parse(localStorage.getItem('nv_convos')||'[]');
+    var activeId=null;
+    var busy=false;
+
+    /* ===== INIT ===== */
+    document.addEventListener('DOMContentLoaded',function(){
+        mkParticles();renderList();
+        if(convos.length>0)loadConvo(convos[0].id);else showWelcome();
+        document.getElementById('promptInput').addEventListener('input',function(){
+            document.getElementById('sendBtn').disabled=!this.value.trim();
+        });
+        updateStatus();
+    });
+
+    function updateStatus(){
+        var el=document.getElementById('apiStatus');
+        if(cfg.found) el.innerHTML='<i class="fa-solid fa-circle text-emerald-400 text-[6px] mr-1"></i>Endpoint trouvé';
+        else el.innerHTML='<i class="fa-solid fa-circle text-yellow-400 text-[6px] mr-1"></i>Non configuré';
+    }
+
+    /* ===== PARTICULES ===== */
+    function mkParticles(){
+        var c=document.getElementById('particles');
+        for(var i=0;i<18;i++){var p=document.createElement('div');p.className='particle';var s=2+Math.random()*4;p.style.width=s+'px';p.style.height=s+'px';p.style.left=Math.random()*100+'%';p.style.top=Math.random()*100+'%';p.style.setProperty('--d',(4+Math.random()*6)+'s');p.style.setProperty('--dl',(Math.random()*5)+'s');c.appendChild(p)}
+    }
+
+    /* ===== MODE ===== */
+    function setMode(m){
+        currentMode=m;
+        document.querySelectorAll('.mode-btn').forEach(function(b){b.classList.toggle('active',b.dataset.mode===m)});
+        document.getElementById('modeHint').innerHTML='Mode : <span class="text-[var(--accent)]">'+(m==='image'?'Image':'Vidéo')+'</span>';
+    }
+
+    /* ===== SIDEBAR ===== */
+    function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('sbOverlay').classList.toggle('open')}
+    function renderList(){
+        var l=document.getElementById('chatList');l.innerHTML='';
+        if(!convos.length){l.innerHTML='<div class="text-center text-[var(--muted)] text-xs py-8">Aucune conversation</div>';return}
+        convos.forEach(function(c){var d=document.createElement('div');d.className='sidebar-item rounded-lg px-3 py-2.5 cursor-pointer text-sm truncate'+(c.id===activeId?' active':'');d.textContent=c.title;d.onclick=function(){loadConvo(c.id)};l.appendChild(d)});
+    }
+
+    /* ===== CONVOS ===== */
+    function newChat(){
+        var c={id:'c_'+Date.now(),title:'Nouvelle conversation',msgs:[],ts:Date.now()};
+        convos.unshift(c);saveConvos();loadConvo(c.id);
+        document.getElementById('headerTitle').textContent=c.title;
+        document.getElementById('sidebar').classList.remove('open');document.getElementById('sbOverlay').classList.remove('open');
+    }
+    function loadConvo(id){
+        activeId=id;var c=convos.find(function(x){return x.id===id});if(!c)return;
+        document.getElementById('headerTitle').textContent=c.title;renderList();
+        var m=document.getElementById('messages');m.innerHTML='';
+        if(!c.msgs.length)showWelcome();else{c.msgs.forEach(function(x){addMsg(x.role,x.text,x.media,x.mtype,false)});scroll()}
+    }
+    function saveConvos(){if(convos.length>50)convos=convos.slice(0,50);localStorage.setItem('nv_convos',JSON.stringify(convos));renderList()}
+    function getConvo(){return convos.find(function(c){return c.id===activeId})}
+
+    /* ===== WELCOME ===== */
+    function showWelcome(){
+        var m=document.getElementById('messages');m.innerHTML='';
+        var d=document.createElement('div');d.className='text-center py-16 msg-in';
+        d.innerHTML='<div class="w-16 h-16 rounded-2xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 flex items-center justify-center mx-auto mb-6 pulse-glow"><i class="fa-solid fa-wand-magic-sparkles text-[var(--accent)] text-2xl"></i></div>'+
+        '<h2 class="text-2xl font-bold mb-2">NeoVision AI</h2>'+
+        '<p class="text-[var(--muted)] text-sm max-w-md mx-auto mb-4">Générateur d\'images et vidéos via originlab.ai</p>'+
+        (!cfg.found?'<div class="mb-6 p-3 max-w-md mx-auto rounded-xl bg-yellow-500/5 border border-yellow-500/20 text-xs text-yellow-400/80"><i class="fa-solid fa-triangle-exclamation mr-1"></i> L\'API n\'est pas encore configurée. Ouvre <strong>Config & Debug</strong> dans la sidebar pour la détecter automatiquement.</div>':'')+
+        '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg mx-auto">'+
+        '<button onclick="useSug(\'Un paysage de montagne enneigée au coucher du soleil, photo pro\')" class="text-left p-3 rounded-xl bg-[var(--card)] border border-[var(--border)] hover:border-[var(--accent)]/30 transition-colors text-xs text-[var(--muted)]"><i class="fa-solid fa-mountain-sun text-[var(--accent)] mb-2 block text-base"></i>Montagne enneigée au coucher du soleil</button>'+
+        '<button onclick="useSug(\'Un chat cybernétique aux yeux néon dans une ruelle de Tokyo\')" class="text-left p-3 rounded-xl bg-[var(--card)] border border-[var(--border)] hover:border-[var(--accent)]/30 transition-colors text-xs text-[var(--muted)]"><i class="fa-solid fa-cat text-[var(--accent)] mb-2 block text-base"></i>Chat cybernétique à Tokyo</button>'+
+        '<button onclick="useSug(\'Portrait hyper-réaliste femme bijoux or éclairage dramatique\')" class="text-left p-3 rounded-xl bg-[var(--card)] border border-[var(--border)] hover:border-[var(--accent)]/30 transition-colors text-xs text-[var(--muted)]"><i class="fa-solid fa-portrait text-[var(--accent)] mb-2 block text-base"></i>Portrait réaliste éclairage dramatique</button>'+
+        '<button onclick="useSug(\'Forêt enchantée champignons luminescents lucioles fantasy\')" class="text-left p-3 rounded-xl bg-[var(--card)] border border-[var(--border)] hover:border-[var(--accent)]/30 transition-colors text-xs text-[var(--muted)]"><i class="fa-solid fa-tree text-[var(--accent)] mb-2 block text-base"></i>Forêt enchantée fantasy</button></div>';
+        m.appendChild(d);
+    }
+    function useSug(t){document.getElementById('promptInput').value=t;document.getElementById('sendBtn').disabled=false;document.getElementById('promptInput').focus()}
+
+    /* ===== ENVOI ===== */
+    function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendPrompt()}}
+    function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,128)+'px'}
+
+    async function sendPrompt(){
+        var inp=document.getElementById('promptInput'),txt=inp.value.trim();
+        if(!txt||busy)return;
+        if(!cfg.found){showToast('Configure d\'abord l\'API (bouton Config & Debug)','error');return}
+        if(!activeId)newChat();
+        var c=getConvo();
+        if(!c.msgs.length){c.title=txt.substring(0,50)+(txt.length>50?'...':'');document.getElementById('headerTitle').textContent=c.title}
+        c.msgs.push({role:'user',text:txt});addMsg('user',txt,null,null,true);scroll();
+        inp.value='';inp.style.height='auto';document.getElementById('sendBtn').disabled=true;
+        busy=true;var lid=showLoad();
+        try{
+            var res=await doAPI(txt,currentMode);rmLoad(lid);
+            var url=extractPath(res,cfg.path);if(!url)url=fallback(res);
+            if(url){
+                var rt=currentMode==='image'?'Voici votre image :':'Voici votre vidéo :';
+                c.msgs.push({role:'bot',text:rt,media:url,mtype:currentMode});addMsg('bot',rt,url,currentMode,true);
+                showToast('Généré avec succès','success');
+            }else{
+                var em='Réponse reçue mais pas d\'URL média trouvée.\n\nRéponse brute :\n'+JSON.stringify(res,null,2).substring(0,600);
+                c.msgs.push({role:'bot',text:em});addMsg('bot',em,null,null,true);
+                showToast('Pas d\'URL dans la réponse','error');
+            }
+            saveConvos();
+        }catch(err){
+            rmLoad(lid);var em2='Erreur : '+err.message;
+            c.msgs.push({role:'bot',text:em2});addMsg('bot',em2,null,null,true);
+            showToast(err.message,'error');saveConvos();
+        }finally{busy=false}
+    }
+
+    /* ===== API CALL ===== */
+    async function doAPI(prompt,mode){
+        var ep=mode==='image'?cfg.img:cfg.vid;
+        var url=cfg.base.replace(/\/+$/,'')+ep;
+        var body=mode==='image'?{prompt:prompt,n:1,size:'1024x1024',response_format:'url'}:{prompt:prompt,model:'video-gen',response_format:'url'};
+        var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_k},body:JSON.stringify(body)});
+        var raw=await r.text();var data;try{data=JSON.parse(raw)}catch(e){data=raw}
+        if(!r.ok){var msg='';if(typeof data==='object'&&data!==null)msg=data.error&&data.error.message?data.error.message:data.message||data.detail||JSON.stringify(data).substring(0,300);else msg=String(data).substring(0,300);throw new Error('HTTP '+r.status+' — '+msg)}
+        return data;
+    }
+
+    /* ===== EXTRACTION ===== */
+    function extractPath(data,path){
+        if(!path||!data||typeof data!=='object')return null;
+        var parts=path.split('.'),cur=data;
+        for(var i=0;i<parts.length;i++){if(cur==null)return null;var k=parts[i];cur=isNaN(k)?cur[k]:cur[parseInt(k)]}
+        return typeof cur==='string'&&cur.length>5?cur:null;
+    }
+    function fallback(d){
+        if(!d)return null;
+        if(d.data&&Array.isArray(d.data)&&d.data[0]){if(d.data[0].b64_json)return'data:image/png;base64,'+d.data[0].b64_json;if(d.data[0].url)return d.data[0].url}
+        return d.output||d.image||d.video||d.url||d.result||d.media||d.src||null;
+    }
+
+    /* ===== MESSAGES ===== */
+    function addMsg(role,text,media,mtype,anim){
+        var c=document.getElementById('messages'),w=document.createElement('div');
+        w.className='mb-6 flex '+(role==='user'?'justify-end':'justify-start')+(anim?' msg-in':'');
+        if(role==='user'){
+            w.innerHTML='<div class="max-w-[85%] sm:max-w-[70%]"><div class="bg-[var(--accent)] text-black px-4 py-3 rounded-2xl rounded-tr-md text-sm leading-relaxed">'+esc(text)+'</div><div class="text-[10px] text-[var(--muted)] mt-1 text-right">'+time()+'</div></div>';
+        }else{
+            var mh='';
+            if(media){
+                if(mtype==='video'){
+                    mh='<div class="mt-3 rounded-xl overflow-hidden border border-[var(--border)]"><video src="'+esc(media)+'" controls class="w-full max-h-[400px] object-contain bg-black" preload="metadata"></video></div><div class="flex gap-2 mt-2"><a href="'+esc(media)+'" download="neovision.mp4" class="ilink"><i class="fa-solid fa-download"></i> Télécharger</a><button onclick="copyT(\''+esc(media)+'\')" class="ilink"><i class="fa-solid fa-link"></i> Copier</button></div>';
+                }else{
+                    mh='<div class="mt-3 rounded-xl overflow-hidden border border-[var(--border)]"><img src="'+esc(media)+'" alt="Généré" class="gen-img w-full max-h-[450px] object-contain bg-[#0d0d0d]" loading="lazy" onclick="openLB(\''+esc(media)+'\')"></div><div class="flex gap-2 mt-2"><a href="'+esc(media)+'" download="neovision.png" class="ilink"><i class="fa-solid fa-download"></i> Télécharger</a><button onclick="openLB(\''+esc(media)+'\')" class="ilink"><i class="fa-solid fa-expand"></i> Agrandir</button><button onclick="copyT(\''+esc(media)+'\')" class="ilink"><i class="fa-solid fa-link"></i> Copier</button></div>';
+                }
+            }
+            w.innerHTML='<div class="max-w-[85%] sm:max-w-[75%] flex gap-3"><div class="w-7 h-7 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/20 flex items-center justify-center flex-shrink-0 mt-1"><i class="fa-solid fa-wand-magic-sparkles text-[var(--accent)] text-[10px]"></i></div><div class="flex-1 min-w-0"><div class="text-sm leading-relaxed text-[var(--fg)]/90 whitespace-pre-wrap">'+esc(text)+'</div>'+mh+'<div class="text-[10px] text-[var(--muted)] mt-1">'+time()+'</div></div></div>';
+        }
+        c.appendChild(w);scroll();
+    }
+    function showLoad(){var id='ld_'+Date.now(),c=document.getElementById('messages'),d=document.createElement('div');d.id=id;d.className='mb-6 flex justify-start msg-in';d.innerHTML='<div class="flex gap-3"><div class="w-7 h-7 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/20 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-wand-magic-sparkles text-[var(--accent)] text-[10px]"></i></div><div class="flex items-center gap-2 px-4 py-3 bg-[var(--card)] rounded-2xl rounded-tl-md border border-[var(--border)]"><div class="w-2 h-2 rounded-full bg-[var(--accent)] tdot"></div><div class="w-2 h-2 rounded-full bg-[var(--accent)] tdot"></div><div class="w-2 h-2 rounded-full bg-[var(--accent)] tdot"></div><span class="text-xs text-[var(--muted)] ml-2">Génération...</span></div></div>';c.appendChild(d);scroll();return id}
+    function rmLoad(id){var e=document.getElementById(id);if(e)e.remove()}
+
+    /* ===== CONFIG MODAL ===== */
+    function openConfig(){
+        document.getElementById('cfgBase').value=cfg.base;
+        document.getElementById('cfgImg').value=cfg.img;
+        document.getElementById('cfgVid').value=cfg.vid;
+        document.getElementById('cfgPath').value=cfg.path;
+        document.getElementById('debugLog').innerHTML='<span class="i">Clique sur "Détection automatique" pour scanner...</span>';
+        document.getElementById('configModal').classList.remove('hidden');
+        document.getElementById('sidebar').classList.remove('open');document.getElementById('sbOverlay').classList.remove('open');
+    }
+    function closeConfig(){document.getElementById('configModal').classList.add('hidden')}
+
+    function readCfg(){
+        cfg.base=document.getElementById('cfgBase').value.replace(/\/+$/,'');
+        cfg.img=document.getElementById('cfgImg').value;
+        cfg.vid=document.getElementById('cfgVid').value;
+        cfg.path=document.getElementById('cfgPath').value;
+    }
+    function saveConfig(){
+        readCfg();localStorage.setItem('nv_cfg',JSON.stringify(cfg));updateStatus();
+        showToast('Configuration sauvegardée','success');closeConfig();
+    }
+
+    /* ===== DÉTECTION AUTOMATIQUE ===== */
+    async function autoDetect(){
+        var log=document.getElementById('debugLog');
+        var btn=document.getElementById('detectBtn');
+        btn.disabled=true;btn.innerHTML='<i class="fa-solid fa-spinner fa-spin mr-2"></i>Détection...';
+        log.innerHTML='';
+
+        var bases=[
+            'https://api.originlab.ai/v1',
+            'https://api.originlab.ai',
+            'https://originlab.ai/api/v1',
+            'https://originlab.ai/api',
+            'https://originlab.ai/v1'
+        ];
+        var imgEndpoints=[
+            '/images/generations','/image/generate','/generate/image',
+            '/images/generate','/image/generations','/v1/images/generations',
+            '/imagine','/create/image','/text-to-image'
+        ];
+        var bodies=[
+            {prompt:'a red circle',n:1,size:'1024x1024',response_format:'url'},
+            {prompt:'a red circle',size:'1024x1024'},
+            {prompt:'a red circle',width:1024,height:1024},
+            {prompt:'a red circle'},
+            {input:'a red circle',n:1,size:'1024x1024'},
+            {text:'a red circle'}
+        ];
+
+        var results=[];
+        var total=bases.length*imgEndpoints.length*bodies.length;
+        var done=0;
+        var found=false;
+
+        log.innerHTML+='<span class="w">Scan de '+total+' combinaisons en cours...</span>\n\n';
+
+        for(var bi=0;bi<bases.length;bi++){
+            for(var ei=0;ei<imgEndpoints.length;ei++){
+                if(found)break;
+                for(var fi=0;fi<bodies.length;fi++){
+                    if(found)break;
+                    var url=bases[bi]+imgEndpoints[ei];
+                    var body=bodies[fi];
+                    done++;
+
+                    try{
+                        var t0=performance.now();
+                        var r=await fetch(url,{
+                            method:'POST',
+                            headers:{'Content-Type':'application/json','Authorization':'Bearer '+_k},
+                            body:JSON.stringify(body)
+                        });
+                        var dt=Math.round(performance.now()-t0);
+                        var raw=await r.text();
+                        var data;try{data=JSON.parse(raw)}catch(e){data=raw}
+
+                        var status=r.status;
+                        var isOk=status>=200&&status<300;
+
+                        if(isOk){
+                            // Essayer d'extraire une URL
+                            var mediaUrl=null;
+                            var pathsToTry=['data.0.url','data.0.b64_json','url','output','image','result','media','src'];
+                            for(var pi=0;pi<pathsToTry.length;pi++){
+                                if(pathsToTry[pi]==='data.0.b64_json'){
+                                    var b64=extractPath(data,'data.0.b64_json');
+                                    if(b64){mediaUrl='data:image/png;base64,'+b64;break}
+                                }else{
+                                    mediaUrl=extractPath(data,pathsToTry[pi]);if(mediaUrl)break;
+                                }
+                            }
+                            if(!mediaUrl)mediaUrl=fallback(data);
+
+                            if(mediaUrl){
+                                log.innerHTML+='<span class="s">&#10003; TROUVÉ !</span>\n';
+                                log.innerHTML+='<span class="s">  URL : '+esc(url)+'</span>\n';
+                                log.innerHTML+='<span class="s">  Body : '+esc(JSON.stringify(body))+'</span>\n';
+                                log.innerHTML+='<span class="s">  Chemin : '+pathsToTry[pi]+'</span>\n';
+                                log.innerHTML+='<span class="s">  Media URL : '+esc(mediaUrl.substring(0,100))+'...</span>\n';
+                                log.innerHTML+='<span class="i">  Temps : '+dt+'ms | Status : '+status+'</span>\n\n';
+
+                                cfg.base=bases[bi];cfg.img=imgEndpoints[ei];
+                                cfg.path=pathsToTry[pi];cfg.found=true;
+                                found=true;
+                                // Mettre à jour les champs
+                                document.getElementById('cfgBase').value=cfg.base;
+                                document.getElementById('cfgImg').value=cfg.img;
+                                document.getElementById('cfgPath').value=cfg.path;
+                                break;
+                            }else{
+                                log.innerHTML+='<span class="w">~ Status '+status+' (pas d\'URL) : '+esc(url)+'</span>\n';
+                                log.innerHTML+='<span class="i">  Réponse : '+esc(typeof data==='string'?data.substring(0,120):JSON.stringify(data).substring(0,120))+'</span>\n\n';
+                            }
+                        }else if(status===404||status===405){
+                            // Endpoint inexistant, on ne l'affiche pas (trop de bruit)
+                        }else{
+                            log.innerHTML+='<span class="e">&#10007; Status '+status+' : '+esc(url)+'</span>\n';
+                            log.innerHTML+='<span class="i">  '+esc(typeof data==='string'?data.substring(0,100):JSON.stringify(data).substring(0,100))+'</span>\n\n';
+                        }
+                    }catch(err){
+                        // Erreur réseau = endpoint probablement inexistant, on ignore
+                    }
+
+                    // Update progression de temps en temps
+                    if(done%10===0){
+                        log.innerHTML=log.innerHTML.replace(/Scan de \d+ combinaisons/,'Scan de '+total+' ('+done+'/'+total+')');
+                    }
+                }
+            }
+        }
+
+        if(!found){
+            log.innerHTML+='\n<span class="e">Aucun endpoint fonctionnel trouvé automatiquement.</span>\n\n';
+            log.innerHTML+='<span class="w">Ce que tu peux faire :</span>\n';
+            log.innerHTML+='<span class="i">1. Va sur originlab.ai → ton dashboard → section API</span>\n';
+            log.innerHTML+='<span class="i">2. Cherche "API Documentation" ou "Endpoints"</span>\n';
+            log.innerHTML+='<span class="i">3. Copie l\'URL exacte et entre-la dans "URL de base"</span>\n';
+            log.innerHTML+='<span class="i">4. Copie le nom de l\'endpoint et entre-le dans "Endpoint Image"</span>\n';
+            log.innerHTML+='<span class="i">5. Clique "Tester manuel" pour vérifier</span>\n';
+        }else{
+            log.innerHTML+='<span class="s">───────────────────────────</span>\n';
+            log.innerHTML+='<span class="s">Configuration détectée avec succès !</span>\n';
+            log.innerHTML+='<span class="s">Clique "Sauvegarder et fermer" pour utiliser.</span>\n';
+            showToast('Endpoint trouvé automatiquement !','success');
+        }
+
+        btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-magnifying-glass mr-2"></i>Détection automatique';
+    }
+
+    async function testOne(){
+        readCfg();
+        var log=document.getElementById('debugLog');
+        var url=cfg.base+cfg.img;
+        var body={prompt:'a red circle on white background',n:1,size:'1024x1024',response_format:'url'};
+
+        log.innerHTML='<span class="i">Test de : '+esc(url)+'</span>\n<span class="i">Body : '+esc(JSON.stringify(body))+'</span>\n<span class="i">Clé : ...'+_k.substring(_k.length-8)+'</span>\n\n';
+
+        try{
+            var t0=performance.now();
+            var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_k},body:JSON.stringify(body)});
+            var dt=Math.round(performance.now()-t0);
+            var raw=await r.text();var data;try{data=JSON.parse(raw)}catch(e){data=raw}
+
+            log.innerHTML+='<span class="i">Status : '+r.status+' ('+dt+'ms)</span>\n';
+            log.innerHTML+='<span class="i">Réponse brute :</span>\n'+esc(typeof data==='string'?data:JSON.stringify(data,null,2)).substring(0,1000)+'\n\n';
+
+            if(r.ok){
+                var paths=['data.0.url','url','output','image','result','media','src'];
+                var found=false;
+                for(var i=0;i<paths.length;i++){
+                    var u=extractPath(data,paths[i]);
+                    if(u){log.innerHTML+='<span class="s">URL trouvée via "'+paths[i]+'" : '+esc(u)+'</span>\n';cfg.path=paths[i];cfg.found=true;found=true;break}
+                }
+                if(!found)log.innerHTML+='<span class="e">Status OK mais aucune URL trouvée avec les chemins testés.</span>\n<span class="w">Modifie le "Chemin URL" manuellement selon la réponse ci-dessus.</span>\n';
+            }else{
+                log.innerHTML+='<span class="e">ERREUR '+r.status+'</span>\n';
+            }
+        }catch(err){
+            log.innerHTML+='<span class="e">ERREUR CONNEXION : '+esc(err.message)+'</span>\n\n';
+            log.innerHTML+='<span class="w">Causes possibles :</span>\n';
+            log.innerHTML+='<span class="i">- L\'URL est incorrecte</span>\n';
+            log.innerHTML+='<span class="i">- Le serveur bloque les requêtes CORS (navigateur)</span>\n';
+            log.innerHTML+='<span class="i">- Problème de réseau</span>\n';
+        }
+    }
+
+    /* ===== LIGHTBOX ===== */
+    function openLB(u){document.getElementById('lbImg').src=u;document.getElementById('lbDownload').href=u;document.getElementById('lightbox').classList.remove('hidden');document.body.style.overflow='hidden'}
+    function closeLightbox(e){if(e&&e.target!==e.currentTarget&&!e.target.closest('button')&&!e.target.closest('a'))return;document.getElementById('lightbox').classList.add('hidden');document.body.style.overflow=''}
+    document.addEventListener('keydown',function(e){if(e.key==='Escape')closeLightbox()});
+
+    /* ===== TOASTS ===== */
+    function toast(msg,type){
+        var c=document.getElementById('toasts'),t=document.createElement('div');
+        var ic=type==='success'?'fa-check-circle':type==='error'?'fa-exclamation-circle':'fa-info-circle';
+        var cl=type==='success'?'text-emerald-400':type==='error'?'text-red-400':'text-[var(--accent)]';
+        t.className='toast-in pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl bg-[#1a1a1a] border border-[var(--border)] shadow-xl min-w-[250px]';
+        t.innerHTML='<i class="fa-solid '+ic+' '+cl+'"></i><span class="text-sm flex-1">'+esc(msg)+'</span>';
+        c.appendChild(t);setTimeout(function(){t.classList.remove('toast-in');t.classList.add('toast-out');setTimeout(function(){t.remove()},300)},3500);
+    }
+    function showToast(m,t){toast(m,t)}
+
+    /* ===== UTILS ===== */
+    function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+    function time(){var n=new Date();return n.getHours().toString().padStart(2,'0')+':'+n.getMinutes().toString().padStart(2,'0')}
+    function scroll(){var a=document.getElementById('chatArea');requestAnimationFrame(function(){a.scrollTop=a.scrollHeight})}
+    function copyT(t){navigator.clipboard.writeText(t).then(function(){toast('Copié !','success')}).catch(function(){toast('Erreur','error')})}
+    </script>
+
+    <!-- Style pour les petits liens inline -->
+    <style>
+        .ilink{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-size:12px;color:var(--muted);text-decoration:none;transition:all .15s;cursor:pointer}
+        .ilink:hover{color:var(--fg);border-color:rgba(245,158,11,.3)}
+    </style>
+</body>
+</html>
